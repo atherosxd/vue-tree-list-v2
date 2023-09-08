@@ -27,7 +27,7 @@
         @mouseout="mouseOut"
         @click.stop="click"
       >
-        <span class="vtl-caret vtl-is-small" v-if="model.children && model.children.length > 0">
+        <span class="vtl-caret vtl-is-small" v-show="model.children && model.children.length > 0">
           <i class="vtl-icon" :class="caretClass" @click.prevent.stop="toggle"></i>
         </span>
 
@@ -134,7 +134,14 @@
         <template v-slot:treeNodeIcon="slotProps">
           <slot name="treeNodeIcon" v-bind="slotProps" />
         </template>
+        <template v-slot:footer="slotProps">
+          <slot name="footer" v-bind="slotProps" />
+        </template>
       </item>
+    </div>
+
+    <div v-if="model.name !== 'root' && expanded">
+      <slot name="footer" :expanded="expanded" :model="model"> </slot>
     </div>
   </div>
 </template>
@@ -146,7 +153,7 @@ import { removeHandler } from './tools.js'
 let compInOperation = null
 
 export default {
-  name: 'vue-tree-list',
+  name: 'vue-tree-list-v2',
   data: function() {
     return {
       isHover: false,
@@ -404,7 +411,6 @@ export default {
   font-variant: normal;
   text-transform: none;
   line-height: 1;
-
   /* Better Font Rendering =========== */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -414,6 +420,7 @@ export default {
       color: inherit;
     }
   }
+
   &:hover {
     color: blue;
   }
@@ -422,24 +429,31 @@ export default {
 .vtl-icon-file:before {
   content: '\e906';
 }
+
 .vtl-icon-folder:before {
   content: '\e907';
 }
+
 .vtl-icon-caret-down:before {
   content: '\e901';
 }
+
 .vtl-icon-caret-right:before {
   content: '\e900';
 }
+
 .vtl-icon-edit:before {
   content: '\e902';
 }
+
 .vtl-icon-folder-plus-e:before {
   content: '\e903';
 }
+
 .vtl-icon-plus:before {
   content: '\e904';
 }
+
 .vtl-icon-trash:before {
   content: '\e905';
 }
@@ -450,9 +464,11 @@ export default {
     margin-top: -5px;
     background-color: transparent;
   }
+
   &.vtl-bottom {
     background-color: transparent;
   }
+
   &.vtl-active {
     border-bottom: 3px dashed blue;
     /*background-color: blue;*/
@@ -468,15 +484,19 @@ export default {
     max-width: 150px;
     border-bottom: 1px solid blue;
   }
+
   &:hover {
     background-color: #f0f0f0;
   }
+
   &.vtl-active {
     outline: 2px dashed pink;
   }
+
   .vtl-caret {
     margin-left: -1rem;
   }
+
   .vtl-operation {
     margin-left: 2rem;
     letter-spacing: 1px;
@@ -486,6 +506,7 @@ export default {
 .vtl-item {
   cursor: pointer;
 }
+
 .vtl-tree-margin {
   margin-left: 2em;
 }

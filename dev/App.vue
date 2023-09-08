@@ -41,8 +41,11 @@
             slotProps.model.children && slotProps.model.children.length > 0 && !slotProps.expanded
               ? '🌲'
               : ''
-          }}</span
-        >
+          }}
+        </span>
+      </template>
+      <template v-slot:footer="slotProps">
+        <span>test</span>
       </template>
     </vue-tree-list>
     <button @click="getNewTree">Get new tree</button>
@@ -172,6 +175,7 @@ export default {
       background-color: #d0cfcf;
     }
   }
+
   .vtl-disabled {
     background-color: #d0cfcf;
   }
