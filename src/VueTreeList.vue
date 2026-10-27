@@ -550,7 +550,8 @@ export default {
 .vtl-drop-ghost {
   pointer-events: none;
   margin: 2px 0;
-  border-left: 4px solid #3e8ed0;
+  // An inset bar, not a border, so the text lines up with the real rows.
+  box-shadow: inset 4px 0 0 #3e8ed0;
   border-radius: 0 4px 4px 0;
   background-color: #eef6fc;
   color: #1f5f8f;
