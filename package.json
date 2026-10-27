@@ -1,6 +1,6 @@
 {
   "name": "vue-tree-list-v2",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A vue component for tree structure. Support adding treenode/leafnode, editing node's name and dragging.",
   "author": "mirxd",
   "scripts": {

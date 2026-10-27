@@ -148,6 +148,39 @@ describe('Drag', () => {
     expect(wrapper.find('.vtl-drop-ghost').classes()).toContain('vtl-drop-ghost--after')
   })
 
+  // The preview must never take over a row's own elements. If it did, a slot component
+  // that caches its props (e-GPA's treeview-row) would keep showing the dragged node.
+  it('keeps the hovered row its own elements while the preview moves around it', async () => {
+    const rowEl = wrapper.find('#t2').element
+    const contentEl = wrapper.find('#t2 .vtl-node-content').element
+    dragStart(wrapper, 't3')
+
+    dragOver(row(wrapper, 't2'), 0.5)
+    await Vue.nextTick()
+    dragOver(row(wrapper, 't2'), 0.1)
+    await Vue.nextTick()
+
+    expect(wrapper.find('.vtl-drop-ghost').classes()).toContain('vtl-drop-ghost--before')
+    expect(wrapper.find('#t2').element).toBe(rowEl)
+    expect(wrapper.find('#t2 .vtl-node-content').element).toBe(contentEl)
+    expect(wrapper.find('#t2 .vtl-node-content').text()).toBe('Node 2')
+  })
+
+  it('keeps a collapsed parent its children while the preview moves around it', async () => {
+    wrapper.find('#t1 .vtl-caret i').trigger('click')
+    await Vue.nextTick()
+    const childEl = wrapper.find('#t11').element
+    dragStart(wrapper, 't3')
+
+    dragOver(row(wrapper, 't1'), 0.9)
+    await Vue.nextTick()
+    dragOver(row(wrapper, 't1'), 0.5)
+    await Vue.nextTick()
+
+    expect(wrapper.find('.vtl-drop-ghost').classes()).toContain('vtl-drop-ghost--into')
+    expect(wrapper.find('#t11').element).toBe(childEl)
+  })
+
   it('shows no preview and drops nothing over the dragged node or its descendants', async () => {
     const snapshot = wrapper.html()
     dragStart(wrapper, 't1')
