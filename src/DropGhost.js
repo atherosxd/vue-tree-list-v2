@@ -44,9 +44,14 @@ export default {
           h('i', { class: 'vtl-icon vtl-menu-icon vtl-icon-folder' })
         ])
 
+    // The preview sits between the target's own unkeyed divs. Without a key, Vue's diff
+    // pairs it with one of them when the position changes, and moves that row's
+    // elements and slot components into the preview (or the reverse).
+    const key = 'vtl-drop-ghost-' + position
     const ghost = h(
       'div',
       {
+        key,
         class: ['vtl-node-main', 'vtl-drop-ghost', 'vtl-drop-ghost--' + position],
         attrs: { 'aria-hidden': 'true' }
       },
@@ -63,6 +68,6 @@ export default {
     )
 
     // A child lands one level deeper, so indent it like the target's children.
-    return position === 'into' ? h('div', { class: 'vtl-tree-margin' }, [ghost]) : ghost
+    return position === 'into' ? h('div', { key, class: 'vtl-tree-margin' }, [ghost]) : ghost
   }
 }
