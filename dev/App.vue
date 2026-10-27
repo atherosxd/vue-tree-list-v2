@@ -92,6 +92,23 @@ export default {
           name: 'Node 3',
           id: 4,
           pid: 0
+        },
+        {
+          name: 'Node 4',
+          id: 5,
+          pid: 0,
+          children: [
+            {
+              name: 'Node 4-1',
+              id: 6,
+              pid: 5
+            }
+          ]
+        },
+        {
+          name: 'Node 5',
+          id: 7,
+          pid: 0
         }
       ])
     }

@@ -188,6 +188,7 @@ Or just register locally like the example below.
 | default-tree-node-name |  string  | New node node |                                Default name for new treenode                                |
 | default-leaf-node-name |  string  | New leaf node |                                Default name for new leafnode                                |
 |    default-expanded    | boolean  |     true      |                                   Tree is expanded or not                                   |
+|      drop-labels       |  object  |     null      | Tag text on the drag preview: `{ before, after, into }`. Missing keys use the plugin defaults |
 
 ## props of TreeNode
 
@@ -214,6 +215,23 @@ Or just register locally like the example below.
 |   moveInto   |    target: TreeNode     |  Move node into another node  |
 | insertBefore |    target: TreeNode     | Move node before another node |
 | insertAfter  |    target: TreeNode     | Move node after another node  |
+
+# drag and drop
+
+While a node is dragged, a copy of its row (rendered with your slots) is shown where it will land, with a tag saying where:
+
+- **Before** (top quarter of a row) and **After** (bottom quarter) place it next to the hovered node, at the same level.
+- **Into** (the middle) makes it the hovered node's first child; the preview is indented one level. Hovering just under an open parent also means **Into**, because that spot is its first child's.
+- Leaf nodes cannot take children: the upper half means **Before**, the lower half **After**.
+- No preview appears over the dragged node itself or its descendants, and dropping there does nothing.
+
+The dragged row is dimmed until the drop. The drop applies exactly what the preview shows, even if the pointer is over the preview or a gap between rows. The `drop`, `drop-before` and `drop-after` events fire as before.
+
+Set the tag text once for the whole app (for example, to translate it), or per tree with the `drop-labels` prop:
+
+```js
+Vue.use(VueTreeList, { dropLabels: { before: 'Avant', after: 'Après', into: 'Dans' } })
+```
 
 # events
 

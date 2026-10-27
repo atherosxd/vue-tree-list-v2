@@ -4,8 +4,12 @@
 
 import VueTreeList from './VueTreeList'
 import { Tree, TreeNode } from './Tree'
+import { defaults } from './defaults'
 
-VueTreeList.install = Vue => {
+VueTreeList.install = (Vue, options = {}) => {
+  if (options.dropLabels) {
+    Object.assign(defaults.dropLabels, options.dropLabels)
+  }
   Vue.component(VueTreeList.name, VueTreeList)
 }
 
