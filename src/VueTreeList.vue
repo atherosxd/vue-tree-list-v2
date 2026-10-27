@@ -1,5 +1,7 @@
 <template>
-  <div class="vtl">
+  <div class="vtl" :class="{ 'vtl-drag-source': isDragSource }" v-on="treeListeners">
+    <vtl-drop-ghost v-if="dropPosition === 'before'" v-bind="ghostProps()" />
+
     <div
       v-if="model.name !== 'root'"
       :id="model.id"
@@ -7,21 +9,10 @@
       :class="{ 'vtl-leaf-node': model.isLeaf, 'vtl-tree-node': !model.isLeaf }"
     >
       <div
-        class="vtl-border vtl-up"
-        :class="{ 'vtl-active': isDragEnterUp }"
-        @drop="dropBefore"
-        @dragenter="dragEnterUp"
-        @dragover="dragOverUp"
-        @dragleave="dragLeaveUp"
-      />
-      <div
         :class="treeNodeClass"
         :draggable="!model.dragDisabled"
         @dragstart="dragStart"
         @dragover="dragOver"
-        @dragenter="dragEnter"
-        @dragleave="dragLeave"
-        @drop="drop"
         @dragend="dragEnd"
         @mouseover="mouseOver"
         @mouseout="mouseOut"
@@ -88,17 +79,9 @@
           </span>
         </div>
       </div>
-
-      <div
-        v-if="model.children && model.children.length > 0 && expanded"
-        class="vtl-border vtl-bottom"
-        :class="{ 'vtl-active': isDragEnterBottom }"
-        @drop="dropAfter"
-        @dragenter="dragEnterBottom"
-        @dragover="dragOverBottom"
-        @dragleave="dragLeaveBottom"
-      ></div>
     </div>
+
+    <vtl-drop-ghost v-if="dropPosition === 'into'" v-bind="ghostProps()" />
 
     <div
       :class="{ 'vtl-tree-margin': model.name !== 'root' }"
@@ -109,7 +92,7 @@
         v-for="model in model.children"
         :default-tree-node-name="defaultTreeNodeName"
         :default-leaf-node-name="defaultLeafNodeName"
-        :default-expanded="defaultExpanded"
+        :default-expanded="model.expanded ? true : defaultExpanded"
         :model="model"
         :key="model.id"
       >
@@ -143,25 +126,52 @@
     <div v-if="model.name !== 'root' && expanded">
       <slot name="footer" :expanded="expanded" :model="model"> </slot>
     </div>
+
+    <vtl-drop-ghost v-if="dropPosition === 'after'" v-bind="ghostProps()" />
   </div>
 </template>
 
 <script>
 import { TreeNode } from './Tree.js'
 import { removeHandler } from './tools.js'
+import VtlDropGhost from './DropGhost.js'
+import { defaults } from './defaults.js'
 
-let compInOperation = null
+// One drag at a time across every tree on the page, so a node can be dragged
+// from one tree into another. The drop state lives on the two rows involved
+// (the dragged one and the current target), so hovering re-renders only those.
+// Invariant: a target is only set while sourceComp is set, so clear the target first.
+let sourceComp = null
+let targetComp = null
+
+function setTarget(comp, position) {
+  if (targetComp && targetComp !== comp) targetComp.dropPosition = null
+  targetComp = comp
+  comp.dropPosition = position
+}
+
+function clearTarget() {
+  if (targetComp) targetComp.dropPosition = null
+  targetComp = null
+}
+
+function resetDrag() {
+  clearTarget()
+  if (sourceComp) sourceComp.isDragSource = false
+  sourceComp = null
+}
 
 export default {
   name: 'vue-tree-list-v2',
+  components: { VtlDropGhost },
   data: function() {
     return {
       isHover: false,
       editable: false,
-      isDragEnterUp: false,
-      isDragEnterBottom: false,
-      isDragEnterNode: false,
-      expanded: this.defaultExpanded
+      expanded: this.defaultExpanded,
+      // 'before' | 'after' | 'into' while this row is the drop target, else null.
+      dropPosition: null,
+      isDragSource: false
     }
   },
   props: {
@@ -187,9 +197,26 @@ export default {
     defaultExpanded: {
       type: Boolean,
       default: true
+    },
+    // Tag text on the drop preview, e.g. { before: 'Before', after: 'After', into: 'Into' }.
+    // Read from the root <vue-tree-list>; missing keys fall back to the plugin defaults.
+    dropLabels: {
+      type: Object,
+      default: null
     }
   },
   computed: {
+    isRoot() {
+      return this.model.name === 'root'
+    },
+
+    // Only the root listens for drops: one drop per tree, wherever the pointer is.
+    treeListeners() {
+      return this.isRoot
+        ? { dragover: this.onTreeDragOver, dragleave: this.onTreeDragLeave, drop: this.onTreeDrop }
+        : {}
+    },
+
     rootNode() {
       var node = this.$parent
       while (node._props.model.name !== 'root') {
@@ -209,12 +236,12 @@ export default {
     treeNodeClass() {
       const {
         model: { dragDisabled, disabled },
-        isDragEnterNode
+        dropPosition
       } = this
 
       return {
         'vtl-node-main': true,
-        'vtl-active': isDragEnterNode,
+        'vtl-drop-target': dropPosition === 'into',
         'vtl-drag-disabled': dragDisabled,
         'vtl-disabled': disabled
       }
@@ -225,6 +252,8 @@ export default {
   },
   beforeDestroy() {
     removeHandler(window, 'keyup')
+    if (sourceComp === this) resetDrag()
+    else if (targetComp === this) clearTarget()
   },
   methods: {
     updateName(e) {
@@ -301,90 +330,108 @@ export default {
       this.rootNode.$emit('add-node', node)
     },
 
-    dragStart(e) {
-      if (!(this.model.dragDisabled || this.model.disabled)) {
-        compInOperation = this
-        // for firefox
-        e.dataTransfer.setData('data', 'data')
-        e.dataTransfer.effectAllowed = 'move'
-        return true
+    ghostProps() {
+      const position = this.dropPosition
+      if (!position) return {}
+      const labels = Object.assign({}, defaults.dropLabels, this.rootNode.dropLabels)
+      return {
+        node: sourceComp.model,
+        position,
+        label: labels[position] || '',
+        expanded: sourceComp.expanded,
+        slots: this.$scopedSlots,
+        root: this.rootNode
       }
-      return false
     },
-    dragEnd() {
-      compInOperation = null
-    },
-    dragOver(e) {
-      e.preventDefault()
-      return true
-    },
-    dragEnter() {
-      if (!compInOperation) return
-      if (compInOperation.model.id === this.model.id || !compInOperation || this.model.isLeaf)
+
+    dragStart(e) {
+      if (this.model.dragDisabled || this.model.disabled) {
+        e.preventDefault()
         return
-      this.isDragEnterNode = true
-    },
-    dragLeave() {
-      this.isDragEnterNode = false
-    },
-    drop() {
-      if (!compInOperation) return
-      const oldParent = compInOperation.model.parent
-      compInOperation.model.moveInto(this.model)
-      this.isDragEnterNode = false
-      this.rootNode.$emit('drop', {
-        target: this.model,
-        node: compInOperation.model,
-        src: oldParent
-      })
+      }
+      sourceComp = this
+      // for firefox
+      e.dataTransfer.setData('data', 'data')
+      e.dataTransfer.effectAllowed = 'move'
+      // Dim the source on the next tick: the browser takes the drag image after this
+      // handler, and a dimmed row would make a faded drag image.
+      setTimeout(() => {
+        if (sourceComp === this) this.isDragSource = true
+      }, 0)
     },
 
-    dragEnterUp() {
-      if (!compInOperation) return
-      this.isDragEnterUp = true
-    },
-    dragOverUp(e) {
-      e.preventDefault()
-      return true
-    },
-    dragLeaveUp() {
-      if (!compInOperation) return
-      this.isDragEnterUp = false
-    },
-    dropBefore() {
-      if (!compInOperation) return
-      const oldParent = compInOperation.model.parent
-      compInOperation.model.insertBefore(this.model)
-      this.isDragEnterUp = false
-      this.rootNode.$emit('drop-before', {
-        target: this.model,
-        node: compInOperation.model,
-        src: oldParent
-      })
+    dragEnd() {
+      resetDrag()
     },
 
-    dragEnterBottom() {
-      if (!compInOperation) return
-      this.isDragEnterBottom = true
+    // Where would the dragged node land if dropped at this pointer position on this row?
+    // Returns 'before' | 'after' | 'into', or null when the drop is not allowed here.
+    getDropPosition(e) {
+      const node = sourceComp.model
+      const target = this.model
+      if (node === target || node.isTargetChild(target)) return null
+
+      const rect = e.currentTarget.getBoundingClientRect()
+      const y = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
+
+      // A leaf cannot take children: upper half goes before it, lower half after it.
+      if (target.isLeaf) return y < 0.5 ? 'before' : 'after'
+      if (y < 0.25) return 'before'
+      // Right under an open parent is its first child's spot, so that also means "into".
+      if (y > 0.75 && !(this.isFolder && this.expanded)) return 'after'
+      return 'into'
     },
-    dragOverBottom(e) {
+
+    dragOver(e) {
+      if (!sourceComp) return
+      const position = this.getDropPosition(e)
+      if (!position) {
+        clearTarget()
+        return
+      }
       e.preventDefault()
-      return true
+      e.dataTransfer.dropEffect = 'move'
+      if (targetComp !== this || this.dropPosition !== position) setTarget(this, position)
     },
-    dragLeaveBottom() {
-      if (!compInOperation) return
-      this.isDragEnterBottom = false
+
+    // Root only. Keeps the drop allowed while the pointer is over the preview or a gap
+    // between rows, so the node lands where the preview shows.
+    onTreeDragOver(e) {
+      if (!sourceComp || !targetComp || targetComp.rootNode !== this) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
     },
-    dropAfter() {
-      if (!compInOperation) return
-      const oldParent = compInOperation.model.parent
-      compInOperation.model.insertAfter(this.model)
-      this.isDragEnterBottom = false
-      this.rootNode.$emit('drop-after', {
-        target: this.model,
-        node: compInOperation.model,
-        src: oldParent
-      })
+
+    // Root only. Hide the preview once the pointer leaves this tree.
+    onTreeDragLeave(e) {
+      if (!targetComp || targetComp.rootNode !== this) return
+      if (e.relatedTarget && !this.$el.contains(e.relatedTarget)) clearTarget()
+    },
+
+    // Root only. Applies the move the preview shows and emits the same events as before.
+    onTreeDrop(e) {
+      if (!sourceComp || !targetComp || targetComp.rootNode !== this) return
+      e.preventDefault()
+      e.stopPropagation()
+
+      const targetVm = targetComp
+      const position = targetVm.dropPosition
+      const node = sourceComp.model
+      const target = targetVm.model
+      const src = node.parent
+      resetDrag()
+
+      if (position === 'into') {
+        node.moveInto(target)
+        targetVm.expanded = true
+        this.$emit('drop', { target, node, src })
+      } else if (position === 'before') {
+        node.insertBefore(target)
+        this.$emit('drop-before', { target, node, src })
+      } else if (position === 'after') {
+        node.insertAfter(target)
+        this.$emit('drop-after', { target, node, src })
+      }
     }
   }
 }
@@ -458,23 +505,6 @@ export default {
   content: '\e905';
 }
 
-.vtl-border {
-  height: 5px;
-  &.vtl-up {
-    margin-top: -5px;
-    background-color: transparent;
-  }
-
-  &.vtl-bottom {
-    background-color: transparent;
-  }
-
-  &.vtl-active {
-    border-bottom: 3px dashed blue;
-    /*background-color: blue;*/
-  }
-}
-
 .vtl-node-main {
   display: flex;
   align-items: center;
@@ -489,8 +519,9 @@ export default {
     background-color: #f0f0f0;
   }
 
-  &.vtl-active {
-    outline: 2px dashed pink;
+  &.vtl-drop-target {
+    background-color: #f0f7ff;
+    box-shadow: inset 0 0 0 1px #9cc8ec;
   }
 
   .vtl-caret {
@@ -509,5 +540,32 @@ export default {
 
 .vtl-tree-margin {
   margin-left: 2em;
+}
+
+.vtl-drag-source {
+  opacity: 0.4;
+}
+
+// Drop preview: the dragged row, shown where it will land.
+.vtl-drop-ghost {
+  pointer-events: none;
+  margin: 2px 0;
+  border-left: 4px solid #3e8ed0;
+  border-radius: 0 4px 4px 0;
+  background-color: #eef6fc;
+  color: #1f5f8f;
+
+  .vtl-drop-tag {
+    flex-shrink: 0;
+    align-self: center;
+    margin: 0 6px 0 auto;
+    padding: 0 8px;
+    border-radius: 10px;
+    background-color: #3e8ed0;
+    color: #fff;
+    font-size: 11px;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
 }
 </style>
